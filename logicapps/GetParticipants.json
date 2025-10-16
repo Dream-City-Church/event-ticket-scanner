@@ -1,0 +1,385 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "triggers": {
+            "HTTP_Request": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "GET",
+                    "relativePath": "event/{event_id}"
+                }
+            }
+        },
+        "actions": {
+            "MP_Token": {
+                "runAfter": {},
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['keyvault']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent('mp-active-token')}/value"
+                },
+                "runtimeConfiguration": {
+                    "secureData": {
+                        "properties": [
+                            "inputs",
+                            "outputs"
+                        ]
+                    }
+                }
+            },
+            "Initialize_Current_Count": {
+                "runAfter": {
+                    "Initialize_Last_Modified": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "CountRecordsReturned",
+                            "type": "integer",
+                            "value": 0
+                        }
+                    ]
+                }
+            },
+            "Initialize_All_Participants": {
+                "runAfter": {
+                    "Initialize_Current_Count": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "AllEventParticipants",
+                            "type": "array",
+                            "value": []
+                        }
+                    ]
+                }
+            },
+            "Until": {
+                "actions": {
+                    "GET_Participants": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "@{outputs('URL')}&$skip=@{mul(1000,variables('LoopCount'))}",
+                            "method": "GET",
+                            "headers": {
+                                "Authorization": "@{body('MP_Token')?['value']}"
+                            },
+                            "retryPolicy": {
+                                "type": "none"
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "Participants": {
+                        "runAfter": {
+                            "GET_Participants": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "ParseJson",
+                        "inputs": {
+                            "content": "@body('GET_Participants')",
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "Event_Participant_ID": {
+                                            "type": "integer"
+                                        },
+                                        "Participant_Name": {
+                                            "type": "string"
+                                        },
+                                        "Participation_Status_ID": {
+                                            "type": "integer"
+                                        },
+                                        "Checked_In_Date": {},
+                                        "Registration_Date": {
+                                            "type": "string"
+                                        },
+                                        "Last_Modified_Date": {},
+                                        "Email_Address": {},
+                                        "Mobile_Phone": {},
+                                        "Event_GUID": {}
+                                    },
+                                    "required": [
+                                        "Event_Participant_ID",
+                                        "Participant_Name",
+                                        "Participation_Status_ID",
+                                        "Checked_In_Date",
+                                        "Registration_Date",
+                                        "Last_Modified_Date"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "Set_Current_Count": {
+                        "runAfter": {
+                            "Set_All_Participants": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "CountRecordsReturned",
+                            "value": "@length(body('Participants'))"
+                        }
+                    },
+                    "Set_All_Participants": {
+                        "runAfter": {
+                            "Compose_Array": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "SetVariable",
+                        "inputs": {
+                            "name": "AllEventParticipants",
+                            "value": "@outputs('Compose_Array')"
+                        }
+                    },
+                    "Compose_Array": {
+                        "runAfter": {
+                            "Participants": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Compose",
+                        "inputs": "@union(variables('AllEventParticipants'),body('Participants'))"
+                    },
+                    "Increment_Loop_Count": {
+                        "runAfter": {
+                            "Set_Current_Count": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "IncrementVariable",
+                        "inputs": {
+                            "name": "LoopCount",
+                            "value": 1
+                        }
+                    }
+                },
+                "runAfter": {
+                    "URL": [
+                        "Succeeded"
+                    ]
+                },
+                "expression": "@less(variables('CountRecordsReturned'), 1000)",
+                "limit": {
+                    "count": 60,
+                    "timeout": "PT1H"
+                },
+                "type": "Until"
+            },
+            "Response": {
+                "runAfter": {
+                    "Checked_In_Attendees": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200,
+                    "body": {
+                        "Event_Title": "@body('Event')?['Event_Title']",
+                        "Event_Start_Date": "@body('Event')?['Event_Start_Date']",
+                        "Num_Attendees": "@length(variables('AllEventParticipants'))",
+                        "Num_Checked_In": "@length(body('Checked_In_Attendees'))",
+                        "Attendees_List": "@variables('AllEventParticipants')"
+                    }
+                }
+            },
+            "Initialize_Loop_Count": {
+                "runAfter": {
+                    "Initialize_All_Participants": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "LoopCount",
+                            "type": "integer",
+                            "value": 0
+                        }
+                    ]
+                }
+            },
+            "Initialize_Last_Modified": {
+                "runAfter": {
+                    "If_No_Event": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "LastModified",
+                            "type": "string",
+                            "value": "@{if(equals(triggerOutputs()?['queries']?['timestamp'],null),'',concat(' AND (_Setup_Date>=','''',formatDateTime(subtractFromTime(triggerOutputs()?['queries']?['timestamp'],7,'hour'),'yyyy-MM-dd HH:mm:ss'),'''',' OR [dp_Updated].[Date_Time]>=','''',formatDateTime(subtractFromTime(triggerOutputs()?['queries']?['timestamp'],7,'hour'),'yyyy-MM-dd HH:mm:ss'),''')'))}"
+                        }
+                    ]
+                }
+            },
+            "URL": {
+                "runAfter": {
+                    "Initialize_Loop_Count": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Compose",
+                "inputs": "@{parameters('MP-BaseURL')}/ministryplatformapi/tables/Event_Participants?$select=Event_Participant_ID,CONCAT(Participant_ID_Table_Contact_ID_Table.Nickname,' ',Participant_ID_Table_Contact_ID_Table.Last_Name) AS [Participant_Name], Participation_Status_ID_Table.Participation_Status_ID,Event_Participants.Time_In AS [Checked_In_Date], Event_Participants._Setup_Date AS [Registration_Date],[dp_Updated].[Date_Time] AS [Last_Modified_Date], Participant_ID_Table_Contact_ID_Table.Email_Address, Participant_ID_Table_Contact_ID_Table.Mobile_Phone, Event_ID_Table.Event_GUID&$filter=Event_Participants.Event_ID=@{body('Event')?['Event_ID']} AND Event_Participants.Participation_Status_ID < 5@{variables('LastModified')}&$orderby=Participant_ID_Table_Contact_ID_Table.Nickname"
+            },
+            "GET_Event": {
+                "runAfter": {
+                    "MP_Token": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Http",
+                "inputs": {
+                    "uri": "@{parameters('MP-BaseURL')}/ministryplatformapi/tables/Events?%24select=Event_Title%2CFORMAT(Event_Start_Date%2C'dddd%2C%20MMMM%20d%2C%20yyyy%2C%20h%3Amm%20tt')%20AS%20%5BEvent_Start_Date%5D%2CEvent_ID&%24filter=Event_GUID='@{triggerOutputs()?['relativePathParameters']?['event_id']}'",
+                    "method": "GET",
+                    "headers": {
+                        "Authorization": "@{body('MP_Token')?['value']}"
+                    },
+                    "retryPolicy": {
+                        "type": "fixed",
+                        "count": 3,
+                        "interval": "PT5S"
+                    }
+                },
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            },
+            "Event": {
+                "runAfter": {
+                    "GET_Event": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ParseJson",
+                "inputs": {
+                    "content": "@if(empty(first(body('GET_Event'))),json('{}'),first(body('GET_Event')))",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "Event_Title": {},
+                            "Event_Start_Date": {},
+                            "Event_ID": {}
+                        }
+                    }
+                }
+            },
+            "If_No_Event": {
+                "actions": {},
+                "runAfter": {
+                    "Event": [
+                        "Succeeded"
+                    ]
+                },
+                "else": {
+                    "actions": {
+                        "Response_No_Event": {
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "statusCode": 404,
+                                "body": {
+                                    "message": "No Event Found"
+                                }
+                            }
+                        },
+                        "Terminate_No_Event": {
+                            "runAfter": {
+                                "Response_No_Event": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Terminate",
+                            "inputs": {
+                                "runStatus": "Cancelled"
+                            }
+                        }
+                    }
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "greater": [
+                                "@length(body('GET_Event'))",
+                                0
+                            ]
+                        }
+                    ]
+                },
+                "type": "If"
+            },
+            "Checked_In_Attendees": {
+                "runAfter": {
+                    "Until": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Query",
+                "inputs": {
+                    "from": "@variables('AllEventParticipants')",
+                    "where": "@not(empty(trim(coalesce(item()?['Checked_In_Date'], ''))))"
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "MP-BaseURL": {
+                "defaultValue": "https://my.churchdomain.org",
+                "type": "String"
+            },
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "keyvault": {
+                    "id": "/subscriptions/[[subscription]]/providers/Microsoft.Web/locations/westus2/managedApis/keyvault",
+                    "connectionId": "/subscriptions/[[subscription]]/resourceGroups/dcc-mp/providers/Microsoft.Web/connections/keyvault",
+                    "connectionName": "keyvault",
+                    "connectionProperties": {
+                        "authentication": {
+                            "type": "ManagedServiceIdentity"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

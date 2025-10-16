@@ -1,0 +1,249 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.0.0",
+        "staticResults": {
+            "HTTP0": {
+                "status": "Succeeded",
+                "code": "202",
+                "outputs": {
+                    "statusCode": "OK",
+                    "headers": {
+                        "status": "ok"
+                    }
+                },
+                "hasDelegate": false
+            },
+            "PUT_EP_Check_In0": {
+                "status": "Succeeded",
+                "hasDelegate": false
+            }
+        },
+        "triggers": {
+            "HTTP_Request": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "Event_Participant_ID": {
+                                    "type": "integer"
+                                },
+                                "Participant_Name": {
+                                    "type": "string"
+                                },
+                                "Participation_Status_ID": {
+                                    "type": "integer"
+                                },
+                                "Checked_In_Date": {},
+                                "Registration_Date": {
+                                    "type": "string"
+                                },
+                                "Last_Modified_Date": {},
+                                "Checked_In": {
+                                    "type": "boolean"
+                                },
+                                "Email_Address": {},
+                                "Mobile_Phone": {},
+                                "Event_GUID": {}
+                            },
+                            "required": [
+                                "Event_Participant_ID",
+                                "Participant_Name",
+                                "Participation_Status_ID",
+                                "Checked_In_Date",
+                                "Registration_Date",
+                                "Last_Modified_Date",
+                                "Checked_In"
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "actions": {
+            "MP_Token": {
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['keyvault']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent('mp-active-token')}/value"
+                },
+                "runAfter": {},
+                "runtimeConfiguration": {
+                    "secureData": {
+                        "properties": [
+                            "inputs",
+                            "outputs"
+                        ]
+                    }
+                }
+            },
+            "Initialize_Participants": {
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "CheckedInParticipants",
+                            "type": "array",
+                            "value": []
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "MP_Token": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "Compose": {
+                "type": "Compose",
+                "inputs": "https://my.churchdomain.org/ministryplatformapi/tables/Event_Participants?$filter=Event_Participant_ID=@{triggerOutputs()['Body']?[0]['Event_Participant_ID']} AND Event_ID_Table.Event_GUID='@{triggerOutputs()['Body']?[0]['Event_GUID']}' AND Event_ID_Table.Event_End_Date >= GetDate()",
+                "runAfter": {
+                    "Initialize_Participants": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "For_each": {
+                "type": "Foreach",
+                "foreach": "@triggerOutputs()?['body']",
+                "actions": {
+                    "GET_Event": {
+                        "type": "Http",
+                        "inputs": {
+                            "uri": "https://my.churchdomain.org/ministryplatformapi/tables/Event_Participants?$filter=Event_Participant_ID=@{item()?['Event_Participant_ID']} AND Event_ID_Table.Event_GUID='@{item()?['Event_GUID']}' AND Event_ID_Table.Event_End_Date >= GetDate()",
+                            "method": "GET",
+                            "headers": {
+                                "Authorization": "@{body('MP_Token')?['value']}"
+                            },
+                            "retryPolicy": {
+                                "type": "fixed",
+                                "count": 3,
+                                "interval": "PT5S"
+                            }
+                        },
+                        "runtimeConfiguration": {
+                            "staticResult": {
+                                "staticResultOptions": "Disabled",
+                                "name": "PUT_EP_Check_In0"
+                            },
+                            "contentTransfer": {
+                                "transferMode": "Chunked"
+                            }
+                        }
+                    },
+                    "If_Valid_Event": {
+                        "type": "If",
+                        "expression": {
+                            "and": [
+                                {
+                                    "greater": [
+                                        "@length(body('GET_Event'))",
+                                        0
+                                    ]
+                                }
+                            ]
+                        },
+                        "actions": {
+                            "Append_Participant": {
+                                "type": "AppendToArrayVariable",
+                                "inputs": {
+                                    "name": "CheckedInParticipants",
+                                    "value": {
+                                        "Event_Participant_ID": "@item()?['Event_Participant_ID']",
+                                        "Participation_Status_ID": 3,
+                                        "Time_In": "@subtractFromTime(item()?['Checked_In_Date'],7,'hour')"
+                                    }
+                                }
+                            }
+                        },
+                        "else": {
+                            "actions": {}
+                        },
+                        "runAfter": {
+                            "GET_Event": [
+                                "Succeeded"
+                            ]
+                        }
+                    }
+                },
+                "runAfter": {
+                    "Compose": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "Response_200": {
+                "type": "Response",
+                "kind": "Http",
+                "inputs": {
+                    "statusCode": 200
+                },
+                "runAfter": {
+                    "PUT_EP_Check_In": [
+                        "Succeeded"
+                    ]
+                }
+            },
+            "PUT_EP_Check_In": {
+                "type": "Http",
+                "inputs": {
+                    "uri": "https://my.churchdomain.org/ministryplatformapi/tables/Event_Participants",
+                    "method": "PUT",
+                    "headers": {
+                        "Authorization": "@{body('MP_Token')?['value']}",
+                        "Content-Type": "application/json"
+                    },
+                    "body": "@variables('CheckedInParticipants')"
+                },
+                "runAfter": {
+                    "For_each": [
+                        "Succeeded"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "staticResult": {
+                        "staticResultOptions": "Disabled",
+                        "name": "PUT_EP_Check_In0"
+                    },
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
+                    }
+                }
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "keyvault": {
+                    "id": "/subscriptions/[[subscription]]/providers/Microsoft.Web/locations/westus2/managedApis/keyvault",
+                    "connectionId": "/subscriptions/[[subscription]]/resourceGroups/dcc-mp/providers/Microsoft.Web/connections/keyvault",
+                    "connectionName": "keyvault",
+                    "connectionProperties": {
+                        "authentication": {
+                            "type": "ManagedServiceIdentity"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

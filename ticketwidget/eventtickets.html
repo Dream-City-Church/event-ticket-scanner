@@ -1,0 +1,78 @@
+<html>
+<head>
+    <title>Event Tickets</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, user-scalable=yes, minimal-ui">
+    <style>
+        @media (prefers-color-scheme: dark) {
+            html, body {
+                background-color: #101010;
+                color: #efefef;
+            }
+        }
+    </style>
+    <link rel="stylesheet" type="text/css" href="https://apps.dreamcitychurch.us/widgets/eventtickets/eventtickets.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" />
+    <script src="https://kit.fontawesome.com/a6a26322af.js" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://mpweb.azureedge.net/cdn/customWidgetV1.js"></script>
+</head>
+
+<body>
+    <div
+        id="EventTickets"
+        data-component="CustomWidget"
+        data-sp="api_custom_EventTickets"
+        data-params="@ContactGuid=[ContactGuid]&@EventId=[EventId]"
+        data-template="https://apps.dreamcitychurch.us/widgets/eventtickets/eventtickets-template.html"
+        data-requireUser="false"
+        data-cache="false"
+        data-debug="true"
+        data-host="dreamcitychurch"
+        >
+    </div>
+
+    <script type="text/javascript">
+        // Wait for widget to load, then add print button functionality
+        window.addEventListener('widgetLoaded', function(e) {
+            document.getElementById('print-button').addEventListener('click', function() {
+                window.print();
+            });
+
+            const eventTitle = e.detail.data.DataSet1[0].Event_Title;
+            const eventDate = new Date(e.detail.data.DataSet1[0].Event_Start_Date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Update page title to include event name
+            document.title = 'Tickets for ' + eventTitle + ' on ' + eventDate;
+
+            // Detect if there is a "src" parameter in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('src')) {
+                const src = urlParams.get('src');
+                // If "src" parameter equals "app", hide the print button
+                if (src === "app") {
+                    document.getElementById('print-button').classList.add('hidden');
+                    document.getElementById('print-button').removeEventListener('click', function() {
+                        window.print();
+                    });
+                }
+            }
+
+            // Add share button functionality if on supported device
+            if(navigator.share) {
+                const shareButton = document.getElementById('share-button');
+                shareButton.classList.remove('hidden');
+
+                shareButton.addEventListener('click', function() {
+                    navigator.share({
+                        title: 'Tickets for ' + eventTitle,
+                        text: 'View and print your tickets for ' + eventTitle + ' here:',
+                        url: window.location.href
+                    });
+                });
+            }
+        });
+
+        
+    </script>
+
+</body>
+</html>

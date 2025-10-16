@@ -1,0 +1,67 @@
+<div class="wrap">
+    <h1 class="page-title">Your Tickets</h1>
+
+    {% if DataSet1.size == 0 %}
+    <div class="no-tickets">
+        <p>You do not have any tickets for this event.</p>
+    </div>
+    {% else %}
+
+    <section class="tickets">
+        {% for ticket in DataSet1 %}
+        <article class="ticket" aria-label="Ticket for {{ ticket.Nickname }}">
+        <div class="ribbon">Show this at check-in</div>
+        <div class="body">
+            <div class="who">
+            <div class="name">{{ ticket.Nickname }} {{ ticket.Last_Name }}</div>
+            <div class="status {% if ticket.Participation_Status_ID < 3 %}status-valid{% else %}status-checked-in{% endif %}">{% if ticket.Participation_Status_ID < 3 %}Valid{% else %}Checked In{% endif %}</div>
+            </div>
+
+            <div class="event">
+            <div class="event-title">{{ ticket.Event_Title }}</div>
+            <!-- For demo, the date is pre-formatted. In production, format from ISO. -->
+            <div class="event-when">{{ ticket.Event_Start_Date | date: "%a %b %d, %Y · %I:%M %p" }}</div>
+            </div>
+
+            <!-- QR code encodes: {"Event_Participant_ID":806838} -->
+            <div class="qrwrap" role="img" aria-label='QR code for participant {{ ticket.Event_Participant_ID }}'>
+            <img
+                alt='QR for {"Event_Participant_ID":{{ ticket.Event_Participant_ID }}}'
+                src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=svg&margin=0&data=%7B%22Event_Participant_ID%22%3A{{ ticket.Event_Participant_ID }}%7D" />
+            </div>
+
+            <div class="meta">
+            <div class="item">
+                <div class="label">Participant ID</div>
+                <div class="value">{{ ticket.Event_Participant_ID }}</div>
+            </div>
+            <div class="item">
+                <div class="label">Registration Fee</div>
+                <div class="value">${{ ticket.Registration_Fee | number: 2 }}</div>
+            </div>
+            </div>
+
+            {% if ticket.Selected_Options %}
+            <div class="options">
+                <div class="label">Selected Options</div>
+                <div class="value">
+                    {{ ticket.Selected_Options }}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="foot">
+            <div class="help">Need help at the door? Tell them your name and show this code.</div>
+            </div>
+        </div>
+        </article>
+        {% endfor %}
+    </section>
+    <footer class="footer">
+        <div id="share-button" class="share-button hidden"><i class="fa-solid fa-share-nodes"></i></div>
+        <div id="print-button" class="print-button"><i class="fa-solid fa-print"></i></div>
+        <div class="note">This ticket was generated electronically. No physical ticket is required.</div>
+    </footer>
+
+    {% endif %}
+</div>

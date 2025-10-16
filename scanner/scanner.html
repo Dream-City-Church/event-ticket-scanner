@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ticket Scanner App</title>
+  <link rel="stylesheet" href="scanner-styles.css" />
+  <script src="https://kit.fontawesome.com/[[Your-FontAwesome-Kit-ID]].js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header>
+    <button id="menuBtn" style="display: none;"></button>
+    <div class="event-info">
+      <h1 id="eventName"><wa-skeleton effect="sheen" style="height:1.2rem;width:85%;--color:#777;--sheen-color:#555;margin-bottom:0.3rem;"></wa-skeleton></h1>
+      <p id="eventDate"><wa-skeleton effect="sheen" style="height:0.6rem;width:70%;--color:#777;--sheen-color:#555;"></wa-skeleton></p>
+    </div>
+    <button id="searchBtn" class="hidden"><i class="fa-solid fa-user-magnifying-glass"></i></button>
+  </header>
+
+  <main>
+    <div id="scanner" class="scanner-placeholder">
+        <div id="cameraStatus" class="camera-status"><i class="fa-solid fa-spinner fa-spin-pulse fa-xl"></i><br />Loading event data...</div>
+        <!-- QR Scanner Video  -->
+        <div id="qr-reader"></div>
+      <!-- QR Scanner will be injected here -->
+      <div id="red-line" class="red-line"></div>
+      <button id="flipCamBtn" style="display:none"><i class="fa-solid fa-camera-rotate"></i></button>
+    </div>
+    <!-- Search Modal -->
+    <div id="searchModal" class="hidden">
+      <div id="searchContainer">
+        <input type="text" id="searchInput" placeholder="Search attendees..." />
+        <button id="closeSearch">✖</button>
+      </div>
+      <div id="attendeeList"></div>
+    </div>
+    <div id="statusBanner" class="status-banner hidden">CHECKED IN</div>
+    <div id="participantInfo" class="participant-info hidden">
+      <h2 id="participantName"></h2>
+      <p id="registrationDetails"></p>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+    </div>
+    <div id="errorOverlay" class="error-overlay hidden">
+      <div class="error-message">
+        <p id="errorText"></p>
+      </div>
+    </div>
+    <div id="serverStatus" class="server-status">
+      <i id="downloadIndicator" class="fa-solid fa-cloud-arrow-down fa-fade status-indicator hidden"></i>
+      <i id="downloadErrorIndicator" class="fa-solid fa-cloud-slash status-indicator hidden"></i>
+      <i id="uploadIndicator" class="fa-solid fa-floppy-disk fa-fade status-indicator hidden"></i>
+      <i id="uploadErrorIndicator" class="fa-solid fa-floppy-disk-circle-xmark status-indicator hidden"></i>
+    </div>
+  </main>
+
+  <footer>
+    <div id="mycheckins"><wa-skeleton effect="sheen" style="height:1rem;width:25%;--color:#777;--sheen-color:#555;"></wa-skeleton></div>
+    <div id="stats"><wa-skeleton effect="sheen" style="height:1rem;width:33%;--color:#777;--sheen-color:#555;float: right;"></wa-skeleton></div>
+  </footer>
+
+
+  <!-- html5-qrcode library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Your app script -->
+  <script src="scanner-app.js"></script>
+</body>
+</html>
